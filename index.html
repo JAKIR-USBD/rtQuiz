@@ -419,6 +419,7 @@ function verifyAdmin() {
     isAdmin = true;
     alert("Admin logged in");
     document.getElementById('adminControls').classList.remove('hidden');
+    renderLeaderboard(); // re-render leaderboard as admin
   } else {
     alert("Incorrect admin credentials");
   }
@@ -560,12 +561,27 @@ function submitQuiz() {
 }
 
 function renderLeaderboard() {
+  const thead = document.querySelector("#leaderboardTable thead tr");
   const tbody = document.querySelector("#leaderboardTable tbody");
+
   firebase.database().ref("quizSubmissions").on("value", (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
 
     const entries = Object.values(data).sort((a, b) => b.score - a.score);
+
+    thead.innerHTML = `
+      <th>Rank</th>
+      <th>Name</th>
+      <th>Email</th>
+      <th>Institution</th>
+      <th>Score</th>
+      <th>Time Taken</th>
+      <th>Time</th>
+      <th>Date</th>
+      ${isAdmin ? "<th>Actions</th>" : ""}
+    `;
+
     tbody.innerHTML = "";
 
     entries.forEach((e, i) => {
@@ -580,14 +596,21 @@ function renderLeaderboard() {
           <td>${e.name}</td>
           <td>${e.email}</td>
           <td>${e.institution}</td>
-          <td><span>${e.score}</span></td>
+          <td><span>${e.score}</span>${isAdmin ? ` <button onclick='editScore("${e.email}")'>Edit</button>` : ""}</td>
           <td>${e.timeTaken || '-'}</td>
           <td>${e.time}</td>
           <td>${e.date}</td>
+          ${isAdmin ? `
+          <td>
+            <span onclick='preview("${e.email}")'>Preview</span> |
+            <span onclick='downloadPreview("${e.email}")'>Download</span> |
+            <span onclick='deleteEntry("${e.email}")'>Delete</span>
+          </td>` : ""}
         </tr>`;
     });
   });
 }
+
   
   
 function confirmAdminAction(actionFn) {

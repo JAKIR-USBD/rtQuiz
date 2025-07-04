@@ -376,7 +376,7 @@
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
-  renderLeaderboard();
+  
   
 
 
@@ -397,43 +397,12 @@ let startTime;
 let userAnswers = [], userExplanations = [], currentPage = 0, timer, timerInterval, timeLeft = 300, isAdmin = false;
 const adminUsername = "admin", adminPassword = "123", adminSecondPassword = "23";
 
-
-
-// 🟢 Listen for exam status changes
-db.ref("examStatus").on("value", (snapshot) => {
-  const status = snapshot.val();
-
-  if (status === "started") {
-    startTime = new Date();
-    document.getElementById('quizSection').classList.remove('hidden');
-    document.getElementById('leaderboardSection').classList.remove('hidden');
-    document.getElementById('notification').textContent = "Exam has started. Good luck!";
-    document.getElementById('startSound').play();
-
-    shuffleOptions();
-    renderQuestion();
-
-    timeLeft = 300;
-    updateTimerDisplay();
-    timer = setTimeout(submitQuiz, timeLeft * 1000);
-    timerInterval = setInterval(() => {
-      timeLeft--;
-      updateTimerDisplay();
-      if (timeLeft <= 0) clearInterval(timerInterval);
-    }, 1000);
-
-    setQuizEnabled(true);  // ✅ Enable inputs
-
-  } else if (status === "stopped") {
-    clearTimeout(timer);
-    clearInterval(timerInterval);
-    document.getElementById('notification').textContent = "Exam has been stopped.";
-    document.getElementById('timeoutSound').play();
-    submitQuiz();
-
-    setQuizEnabled(false);  // ✅ Freeze again
-  }
-});
+// helper: enable/disable quiz inputs
+function setQuizEnabled(enabled) {
+  const section = document.getElementById('quizSection');
+  const inputs = section.querySelectorAll('input, button, textarea');
+  inputs.forEach(el => el.disabled = !enabled);
+}
 
 function showRules() {
   document.getElementById('rulesSection').classList.remove('hidden');
@@ -455,22 +424,51 @@ function verifyAdmin() {
   }
 }
 
-// 🟢 Updated admin functions
 function startExam() {
-  db.ref("examStatus").set("started");
+  firebase.database().ref("examStatus").set("started");
 }
-  
-  function setQuizEnabled(enabled) {
-  const section = document.getElementById('quizSection');
-  const inputs = section.querySelectorAll('input, button, textarea');
-  inputs.forEach(el => el.disabled = !enabled);
+function stopExam() {
+  firebase.database().ref("examStatus").set("stopped");
 }
 
-  
-  
-function stopExam() {
-  db.ref("examStatus").set("stopped");
-}
+// listen for exam status in realtime
+firebase.database().ref("examStatus").on("value", (snapshot) => {
+  const status = snapshot.val();
+
+  if (status === "started") {
+    startTime = new Date();
+
+    document.getElementById('quizSection').classList.remove('hidden');
+    document.getElementById('leaderboardSection').classList.remove('hidden');
+
+    document.getElementById('notification').textContent = "Exam has started. Good luck!";
+    document.getElementById('startSound').play();
+
+    shuffleOptions();
+    renderQuestion();
+
+    timeLeft = 300;
+    updateTimerDisplay();
+    timer = setTimeout(submitQuiz, timeLeft * 1000);
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      updateTimerDisplay();
+      if (timeLeft <= 0) clearInterval(timerInterval);
+    }, 1000);
+
+    setQuizEnabled(true);
+
+  } else {
+    clearTimeout(timer);
+    clearInterval(timerInterval);
+
+    document.getElementById('quizSection').classList.add('hidden');
+    document.getElementById('leaderboardSection').classList.add('hidden');
+
+    document.getElementById('notification').textContent = "Exam is not active.";
+    setQuizEnabled(false);
+  }
+});
 
 function updateTimerDisplay() {
   const minutes = Math.floor(timeLeft / 60).toString().padStart(2, "0");
@@ -512,17 +510,12 @@ function saveExplanation(index, text) { userExplanations[index] = text; }
 function nextPage() { if (currentPage < quizData.length - 1) { currentPage++; renderQuestion(); } }
 function prevPage() { if (currentPage > 0) { currentPage--; renderQuestion(); } }
 
-// 🟢 Updated submitQuiz
 function submitQuiz() {
   clearTimeout(timer);
-
   const name = document.getElementById('name').value;
   const email = document.getElementById('email').value;
   const institution = document.getElementById('institution').value;
-
-  if (!name || !email) {
-    return alert("Fill all fields");
-  }
+  if (!name || !email) return alert("Fill all fields");
 
   document.querySelector("#quizSection button[onclick='submitQuiz()']").disabled = true;
   document.querySelector("#quizSection button[onclick='nextPage()']").disabled = true;
@@ -557,24 +550,18 @@ function submitQuiz() {
     explanations: userExplanations
   };
 
-  db.ref("quizSubmissions/" + email.replace(/\./g, "_")).set(entry, (error) => {
+  firebase.database().ref("quizSubmissions/" + email.replace(/\./g, "_")).set(entry, (error) => {
     if (error) {
       alert("Error saving data.");
     } else {
       alert("Quiz submitted. Score: " + score);
-
-      // ✅ Show leaderboard and hide quiz
-      document.getElementById("leaderboardSection").classList.remove("hidden");
-      document.getElementById("quizSection").classList.add("hidden");
-      renderLeaderboard();
     }
   });
 }
 
-// 🟢 Leaderboard
 function renderLeaderboard() {
   const tbody = document.querySelector("#leaderboardTable tbody");
-  db.ref("quizSubmissions").on("value", (snapshot) => {
+  firebase.database().ref("quizSubmissions").on("value", (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
 
@@ -593,23 +580,16 @@ function renderLeaderboard() {
           <td>${e.name}</td>
           <td>${e.email}</td>
           <td>${e.institution}</td>
-          <td>
-            <span>${e.score}</span>
-            <button class="admin-only" onclick='editScore("${e.email}")'>Edit</button>
-          </td>
+          <td><span>${e.score}</span></td>
           <td>${e.timeTaken || '-'}</td>
           <td>${e.time}</td>
           <td>${e.date}</td>
-          <td>
-            <span class='admin-only' onclick='preview("${e.email}")'>Preview</span> |
-            <span class='admin-only' onclick='downloadPreview("${e.email}")'>Download</span> |
-            <span class='admin-only' onclick='deleteEntry("${e.email}")'>Delete</span>
-          </td>
         </tr>`;
     });
   });
 }
-
+  
+  
 function confirmAdminAction(actionFn) {
   const input = prompt("Enter Admin Password to confirm:");
   if (input === adminPassword) {
@@ -692,7 +672,7 @@ function downloadPreview(email) {
 }
 
   setQuizEnabled(false);
-  
+renderLeaderboard();
 </script>
 </body>
 </html>

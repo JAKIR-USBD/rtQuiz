@@ -376,6 +376,8 @@
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
+  renderLeaderboard();
+
 </script>
 
   
@@ -481,10 +483,14 @@ function prevPage() { if (currentPage > 0) { currentPage--; renderQuestion(); } 
 
 function submitQuiz() {
   clearTimeout(timer);
+
   const name = document.getElementById('name').value;
   const email = document.getElementById('email').value;
   const institution = document.getElementById('institution').value;
-  if (!name || !email) return alert("Fill all fields");
+
+  if (!name || !email) {
+    return alert("Fill all fields");
+  }
 
   document.querySelector("#quizSection button[onclick='submitQuiz()']").disabled = true;
   document.querySelector("#quizSection button[onclick='nextPage()']").disabled = true;
@@ -519,15 +525,25 @@ function submitQuiz() {
     explanations: userExplanations
   };
 
-  // 🔥 Save to Firebase
+  // 🔷 Save to Firebase
   firebase.database().ref("quizSubmissions/" + email.replace(/\./g, "_")).set(entry, (error) => {
     if (error) {
       alert("Error saving data.");
     } else {
       alert("Quiz submitted. Score: " + score);
+
+      // ✅ Show leaderboard for all users
+      document.getElementById("leaderboardSection").classList.remove("hidden");
+
+      // ✅ Optionally hide the quiz
+      document.getElementById("quizSection").classList.add("hidden");
+
+      // ✅ Refresh leaderboard
+      renderLeaderboard();
     }
   });
 }
+
 
 
 function renderLeaderboard() {

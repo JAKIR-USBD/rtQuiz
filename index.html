@@ -377,6 +377,8 @@
   firebase.initializeApp(firebaseConfig);
   const db = firebase.database();
   renderLeaderboard();
+  
+
 
 </script>
 
@@ -420,12 +422,16 @@ db.ref("examStatus").on("value", (snapshot) => {
       if (timeLeft <= 0) clearInterval(timerInterval);
     }, 1000);
 
+    setQuizEnabled(true);  // ✅ Enable inputs
+
   } else if (status === "stopped") {
     clearTimeout(timer);
     clearInterval(timerInterval);
     document.getElementById('notification').textContent = "Exam has been stopped.";
     document.getElementById('timeoutSound').play();
     submitQuiz();
+
+    setQuizEnabled(false);  // ✅ Freeze again
   }
 });
 
@@ -453,6 +459,15 @@ function verifyAdmin() {
 function startExam() {
   db.ref("examStatus").set("started");
 }
+  
+  function setQuizEnabled(enabled) {
+  const section = document.getElementById('quizSection');
+  const inputs = section.querySelectorAll('input, button, textarea');
+  inputs.forEach(el => el.disabled = !enabled);
+}
+
+  
+  
 function stopExam() {
   db.ref("examStatus").set("stopped");
 }
@@ -676,6 +691,7 @@ function downloadPreview(email) {
   });
 }
 
+  setQuizEnabled(false);
   
 </script>
 </body>

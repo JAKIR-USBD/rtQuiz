@@ -395,6 +395,40 @@ let startTime;
 let userAnswers = [], userExplanations = [], currentPage = 0, timer, timerInterval, timeLeft = 300, isAdmin = false;
 const adminUsername = "admin", adminPassword = "123", adminSecondPassword = "23";
 
+
+
+// 🟢 Listen for exam status changes
+db.ref("examStatus").on("value", (snapshot) => {
+  const status = snapshot.val();
+
+  if (status === "started") {
+    startTime = new Date();
+    document.getElementById('quizSection').classList.remove('hidden');
+    document.getElementById('leaderboardSection').classList.remove('hidden');
+    document.getElementById('notification').textContent = "Exam has started. Good luck!";
+    document.getElementById('startSound').play();
+
+    shuffleOptions();
+    renderQuestion();
+
+    timeLeft = 300;
+    updateTimerDisplay();
+    timer = setTimeout(submitQuiz, timeLeft * 1000);
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      updateTimerDisplay();
+      if (timeLeft <= 0) clearInterval(timerInterval);
+    }, 1000);
+
+  } else if (status === "stopped") {
+    clearTimeout(timer);
+    clearInterval(timerInterval);
+    document.getElementById('notification').textContent = "Exam has been stopped.";
+    document.getElementById('timeoutSound').play();
+    submitQuiz();
+  }
+});
+
 function showRules() {
   document.getElementById('rulesSection').classList.remove('hidden');
 }
@@ -415,32 +449,14 @@ function verifyAdmin() {
   }
 }
 
+// 🟢 Updated admin functions
 function startExam() {
-  startTime = new Date();
-  document.getElementById('quizSection').classList.remove('hidden');
-  document.getElementById('leaderboardSection').classList.remove('hidden');
-  document.getElementById('examStatus').textContent = "Status: Started";
-  document.getElementById('startSound').play();
-  document.getElementById('notification').textContent = "Exam has started. Good luck!";
-  shuffleOptions();
-  renderQuestion();
-  timeLeft = 300;
-  updateTimerDisplay();
-  timer = setTimeout(submitQuiz, timeLeft * 1000);
-  timerInterval = setInterval(() => {
-    timeLeft--;
-    updateTimerDisplay();
-    if (timeLeft <= 0) clearInterval(timerInterval);
-  }, 1000);
+  db.ref("examStatus").set("started");
 }
 function stopExam() {
-  clearTimeout(timer);
-  clearInterval(timerInterval);
-  document.getElementById('examStatus').textContent = "Status: Stopped";
-  document.getElementById('startSound').play();
-  document.getElementById('notification').textContent = "Exam has been stopped.";
-  submitQuiz();
+  db.ref("examStatus").set("stopped");
 }
+
 function updateTimerDisplay() {
   const minutes = Math.floor(timeLeft / 60).toString().padStart(2, "0");
   const seconds = (timeLeft % 60).toString().padStart(2, "0");
@@ -481,6 +497,7 @@ function saveExplanation(index, text) { userExplanations[index] = text; }
 function nextPage() { if (currentPage < quizData.length - 1) { currentPage++; renderQuestion(); } }
 function prevPage() { if (currentPage > 0) { currentPage--; renderQuestion(); } }
 
+// 🟢 Updated submitQuiz
 function submitQuiz() {
   clearTimeout(timer);
 
@@ -525,30 +542,24 @@ function submitQuiz() {
     explanations: userExplanations
   };
 
-  // 🔷 Save to Firebase
-  firebase.database().ref("quizSubmissions/" + email.replace(/\./g, "_")).set(entry, (error) => {
+  db.ref("quizSubmissions/" + email.replace(/\./g, "_")).set(entry, (error) => {
     if (error) {
       alert("Error saving data.");
     } else {
       alert("Quiz submitted. Score: " + score);
 
-      // ✅ Show leaderboard for all users
+      // ✅ Show leaderboard and hide quiz
       document.getElementById("leaderboardSection").classList.remove("hidden");
-
-      // ✅ Optionally hide the quiz
       document.getElementById("quizSection").classList.add("hidden");
-
-      // ✅ Refresh leaderboard
       renderLeaderboard();
     }
   });
 }
 
-
-
+// 🟢 Leaderboard
 function renderLeaderboard() {
   const tbody = document.querySelector("#leaderboardTable tbody");
-  firebase.database().ref("quizSubmissions").on("value", (snapshot) => {
+  db.ref("quizSubmissions").on("value", (snapshot) => {
     const data = snapshot.val();
     if (!data) return;
 
